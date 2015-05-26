@@ -954,7 +954,7 @@ void rtw_cfg80211_indicate_disconnect(_adapter *padapter)
 				WLAN_STATUS_UNSPECIFIED_FAILURE, GFP_ATOMIC/*GFP_KERNEL*/);
 		//else if(pwdev->sme_state==CFG80211_SME_CONNECTED)
 		else
-			cfg80211_disconnected(padapter->pnetdev, 0, NULL, 0, GFP_ATOMIC);
+			cfg80211_disconnected(padapter->pnetdev, 0, NULL, 0, false, GFP_ATOMIC);
 	}
 }
  	
