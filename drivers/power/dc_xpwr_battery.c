@@ -685,6 +685,8 @@ static int pmic_fg_battery_health(struct pmic_fg_info *info)
 		health = POWER_SUPPLY_HEALTH_DEAD;
 	else
 		health = POWER_SUPPLY_HEALTH_GOOD;
+	
+	health = POWER_SUPPLY_HEALTH_GOOD;
 
 health_read_fail:
 	return health;
@@ -701,6 +703,7 @@ static int pmic_fg_get_battery_property(struct power_supply *psy,
 	mutex_lock(&info->lock);
 	switch (psp) {
 	case POWER_SUPPLY_PROP_STATUS:
+		//printk("===battery status:%d\n", info->status);
 		val->intval = info->status;
 		break;
 	case POWER_SUPPLY_PROP_HEALTH:

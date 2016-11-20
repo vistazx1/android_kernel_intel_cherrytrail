@@ -38,6 +38,19 @@
 #define GPIO_USB_MUX_INDEX	1
 #define GPIO_OTG_VBUS_INDEX	2
 #define FPO0_USB_COMP_OFFSET	0x01
+#define MAX_CV 		 4200
+#define MAX_CC 		 2500
+
+//Yanghua M10QI Battery profile.
+#define BATTERY_CAPACITY 8575
+#define BATTERY_RDC1 0xC0
+#define BATTERY_RDC0 0x52
+static int fg_bat_curve[] = {
+	0,		0,		0,		0,		0,		0,		0,		1,		2,		3,	
+	6,		12, 	20, 	36, 	48, 	53, 	57, 	61, 	63, 	69, 
+	74, 	79, 	83, 	88, 	92, 	97, 	98, 	100,	100,	100,
+	100,	100,
+};
 
 /*If need PMIC support power button event report, define it*/
 /*#define PMIC_DC_PWR_BTN_EN*/
@@ -385,7 +398,7 @@ static void platform_init_chrg_params(struct dollarcove_chrg_pdata *pdata)
 			platform_get_batt_charge_profile();
 	/* Initialize the default parameters */
 	pdata->def_cc = 500;
-	pdata->def_cv = 4350;
+	pdata->def_cv = MAX_CV;
 	pdata->def_ilim = 900;
 	pdata->def_iterm = 300;
 	pdata->def_max_temp = 55;
@@ -393,8 +406,8 @@ static void platform_init_chrg_params(struct dollarcove_chrg_pdata *pdata)
 
 	/* Initialize with default values if no charge profile */
 	if (!pdata->chg_profile) {
-		pdata->max_cc = 2000;
-		pdata->max_cv = 4350;
+		pdata->max_cc = MAX_CC;
+		pdata->max_cv = MAX_CV;
 		return;
 	}
 	prof = (struct ps_pse_mod_prof *)pdata->chg_profile->batt_prof;
@@ -423,12 +436,12 @@ static void platform_set_battery_data(struct dollarcove_fg_pdata *pdata,
 	 * sometimes incorrectly set them to 0.
 	 */
 	if (chg_prof->chrg_prof_type == PSE_MOD_CHRG_PROF) {
-		pdata->design_cap = prof->capacity ? prof->capacity : 4045;
-		pdata->design_max_volt = prof->voltage_max ? prof->voltage_max : 4350;
-		pdata->design_min_volt = prof->low_batt_mV ? prof->low_batt_mV : 3400;
+		pdata->design_cap = BATTERY_CAPACITY;//prof->capacity ? prof->capacity : BATTERY_CAPACITY;
+		pdata->design_max_volt = MAX_CV;//prof->voltage_max ? prof->voltage_max : 4200;
+		pdata->design_min_volt = 3450;//prof->low_batt_mV ? prof->low_batt_mV : 3400;
 	} else {
-		pdata->design_cap = 4045;
-		pdata->design_max_volt = 4350;
+		pdata->design_cap = BATTERY_CAPACITY;
+		pdata->design_max_volt = MAX_CV;
 		pdata->design_min_volt = 3400;
 	}
 }
@@ -442,8 +455,8 @@ static void platform_init_chrg_params(struct dollarcove_chrg_pdata *pdata)
 static void platform_set_battery_data(struct dollarcove_fg_pdata *pdata,
 	struct ps_batt_chg_prof *chg_prof)
 {
-	pdata->design_cap = 4045;
-	pdata->design_max_volt = 4350;
+	pdata->design_cap = BATTERY_CAPACITY;
+	pdata->design_max_volt = MAX_CV;
 	pdata->design_min_volt = 3400;
 }
 
@@ -469,12 +482,14 @@ static void dc_xpwr_chrg_pdata(void)
 				(void *)&pdata, sizeof(pdata), 0);
 }
 
+#if 0
 static int fg_bat_curve[] = {
 	0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x1, 0x2,
 	0x2, 0x3, 0x5, 0x9, 0xf, 0x18, 0x24, 0x29,
     0x2e, 0x32, 0x35, 0x3b, 0x40, 0x45, 0x49, 0x4c,
     0x50, 0x53, 0x55, 0x57, 0x5a, 0x5d, 0x61, 0x64,
 };
+#endif
 
 #ifdef CONFIG_ACPI
 #define FGCONFIG_ACPI_TABLE_NAME	"BCFG"
@@ -566,8 +581,8 @@ static void dc_xpwr_get_fg_config_data(struct dollarcove_fg_pdata *pdata)
 	pdata->cdata.cap0 = scaled_capacity & 0xFF;
 	pdata->cdata.cap1 = (scaled_capacity >> 8) | 0x80;
 
-	pdata->cdata.rdc1 = 0xc0;
-	pdata->cdata.rdc0 = 0x97;
+	pdata->cdata.rdc1 = BATTERY_RDC1;
+	pdata->cdata.rdc0 = BATTERY_RDC0;
 
 	/* Donot update the entire fg  data on every boot*/
 	pdata->cdata.fco = 0x00;
