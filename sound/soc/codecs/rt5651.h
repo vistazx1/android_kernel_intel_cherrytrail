@@ -1442,7 +1442,7 @@
 #define RT5651_EQ_LPF_SFT			0
 #define RT5651_EQ_LPF_DIS			(0x0)
 #define RT5651_EQ_LPF_EN			(0x1)
-#define RT5651_EQ_CTRL_MASK			(0x7f)
+#define RT5651_EQ_CTRL_MASK			(0x01ff)
 
 /* Memory Test (0xb2) */
 #define RT5651_MT_MASK				(0x1 << 15)
@@ -2151,5 +2151,7 @@ int rt5651_check_bp_status(struct snd_soc_codec *codec);
 void rt5651_enable_ovcd_interrupt(struct snd_soc_codec *codec, bool enable);
 void rt5651_config_ovcd_thld(struct snd_soc_codec *codec,
 						int base, int scale_factor);
+int rt5651_index_write(struct snd_soc_codec *codec,
+		unsigned int reg, unsigned int value);
 
 #endif /* __RT5651_H__ */

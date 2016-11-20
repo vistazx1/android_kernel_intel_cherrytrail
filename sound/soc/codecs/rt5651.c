@@ -25,6 +25,8 @@
 #include <sound/initval.h>
 #include <sound/tlv.h>
 #include <linux/gpio/consumer.h>
+#include <linux/acpi.h>
+#include <linux/gpio.h>
 
 #define RTK_IOCTL
 #ifdef RTK_IOCTL
@@ -41,7 +43,8 @@
 #define HEADSET_DET_DELAY    200 /* Delay(ms) before reading over current
 				    status for headset detection */
 #define AUDIO_INIT 134
-
+#define USE_EQ
+#define JD1_FUNC
 #define USE_ASRC
 
 struct snd_soc_codec *rt5651_codec;
@@ -71,20 +74,28 @@ static struct rt5651_init_reg init_list[] = {
 	/* LOUT */
 	{RT5651_LOUT_MIXER	, 0xc000},
 	{RT5651_LOUT_CTRL1	, 0x8a8a},
-	{RT5651_LOUT_CTRL2	, 0x8000}, /* Set LOUT to diff. mode */
+	//{RT5651_LOUT_CTRL2	, 0x8000}, /* Set LOUT to diff. mode */
 	/* MIC */
 	{RT5651_STO1_ADC_MIXER	, 0x3020},
 	/* {RT5651_STO1_ADC_MIXER	, 0x5042}, */ /* DMICS */
 
-	{RT5651_IN1_IN2		, 0x1000}, /* set IN1 boost 20db */
-	{RT5651_IN3		, 0x1000}, /* set IN3 boost to 20db */
+	{RT5651_IN1_IN2		, 0x0140}, /* set IN1 boost 20db */
+//	{RT5651_IN3		, 0x1000}, /* set IN3 boost to 20db */
 	/* {RT5651_GPIO_CTRL1	, 0xc000}, */ /* enable gpio1, DMIC1 */
 	/* I2S2 */
 	/* {RT5651_GPIO_CTRL1	, 0x0000}, */ /* I2S-2 Pin -> I2S */
 	/* {RT5651_STO_DAC_MIXER	, 0x4242}, */
 	/* {RT5651_DAC2_CTRL	, 0x0c00}, */
+       {RT5651_DIG_INF_DATA    , 0x0080},
 
-	{RT5651_DIG_INF_DATA    , 0x0080},
+#ifdef JD1_FUNC
+	//{RT5651_JD_CTRL2	, 0x0200}, // 0xbc jd is jd1 
+	{RT5651_IRQ_CTRL1	, 0x0200}, // 0xbd irq is jd1
+	{RT5651_GPIO_CTRL1	, 0x8000}, // irq on ,dmic off
+	{RT5651_GPIO_CTRL2	, 0x0004}, // output
+	{RT5651_PWR_ANLG2	, 0x0a04}, // jd power
+	{RT5651_A_JD_CTL1	, 0x0212}, // 20160301 jd 1_port 
+#endif
 };
 
 #define RT5651_INIT_REG_LEN ARRAY_SIZE(init_list)
@@ -117,7 +128,7 @@ static const u16 rt5651_reg[RT5651_DEVICE_ID + 1] = {
 	[RT5651_LOUT_CTRL1] = 0xc8c8,
 	[RT5651_INL1_INR1_VOL] = 0x0808,
 	[RT5651_INL2_INR2_VOL] = 0x0808,
-	[RT5651_DAC1_DIG_VOL] = 0xabac,
+	[RT5651_DAC1_DIG_VOL] = 0xafaf,
 	[RT5651_DAC2_DIG_VOL] = 0xafaf,
 	[RT5651_DAC2_CTRL] = 0x0c00,
 	[RT5651_ADC_DIG_VOL] = 0x2f2f,
@@ -180,7 +191,7 @@ static int rt5651_reset(struct snd_soc_codec *codec)
  *
  * Returns 0 for success or negative error code.
  */
-static int rt5651_index_write(struct snd_soc_codec *codec,
+int rt5651_index_write(struct snd_soc_codec *codec,
 		unsigned int reg, unsigned int value)
 {
 	int ret;
@@ -500,7 +511,7 @@ EXPORT_SYMBOL(rt5651_config_ovcd_thld);
 int rt5651_check_jd_status(struct snd_soc_codec *codec)
 {
 	/* TODO: Check the mask bit */
-	return snd_soc_read(codec, RT5651_INT_IRQ_ST) & 0x0010;
+	return snd_soc_read(codec, RT5651_INT_IRQ_ST) & 0x1000;
 }
 EXPORT_SYMBOL(rt5651_check_jd_status);
 
@@ -758,10 +769,10 @@ static int check_sysclk1_source(struct snd_soc_dapm_widget *source,
 
 	val = snd_soc_read(source->codec, RT5651_GLB_CLK);
 	val &= RT5651_SCLK_SRC_MASK;
-	if (val == RT5651_SCLK_SRC_PLL1)
+	//if (val == RT5651_SCLK_SRC_PLL1)
 		return 1;
-	else
-		return 0;
+	//else
+		//return 0;
 }
 
 /* Digital Mixer */
@@ -1150,6 +1161,10 @@ static int rt5651_hp_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		rt5651_pmu_depop(codec);
+		#ifdef USE_EQ
+		rt5651_update_eqmode(codec, NORMAL);
+		snd_soc_write(codec,RT5651_ALC_1,0x2226); //ALC 
+		#endif
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
@@ -1170,14 +1185,28 @@ static int rt5651_lout_event(struct snd_soc_dapm_widget *w,
 	switch (event) {
 	case SND_SOC_DAPM_POST_PMU:
 		hp_amp_power(codec, 1);
+		#ifdef USE_EQ
+		rt5651_update_eqmode(codec, SPK);
+		snd_soc_write(codec,RT5651_ALC_2,0x1FE8);  
+		snd_soc_write(codec,RT5651_ALC_3,0x0100); 
+		snd_soc_write(codec,RT5651_ALC_1,0x6226); //ALC 
+	//	snd_soc_write(codec,RT5651_LOUT_CTRL1,0x9191); 
+		#endif
 		snd_soc_update_bits(codec, RT5651_LOUT_CTRL1,
 			RT5651_L_MUTE | RT5651_R_MUTE, 0);
+		mdelay(150);
+		gpio_direction_output(368,1);
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
+		gpio_direction_output(368,0);
 		snd_soc_update_bits(codec, RT5651_LOUT_CTRL1,
 			RT5651_L_MUTE | RT5651_R_MUTE,
 			RT5651_L_MUTE | RT5651_R_MUTE);
+		#ifdef USE_EQ
+		rt5651_update_eqmode(codec, NORMAL);
+		snd_soc_write(codec,RT5651_ALC_1,0x2226); //ALC 
+		#endif
 		hp_amp_power(codec, 0);
 		break;
 
@@ -1216,11 +1245,17 @@ static int rt5651_bst2_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_update_bits(codec, RT5651_PWR_ANLG2,
 			RT5651_PWR_BST2_OP2, RT5651_PWR_BST2_OP2);
+				#ifdef USE_EQ
+		//rt5651_update_eqmode(codec, ADC);
+		#endif
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
 		snd_soc_update_bits(codec, RT5651_PWR_ANLG2,
 			RT5651_PWR_BST2_OP2, 0);
+						#ifdef USE_EQ
+		//rt5651_update_eqmode(codec, NORMAL);
+		#endif
 		break;
 
 	default:
@@ -1237,11 +1272,17 @@ static int rt5651_bst3_event(struct snd_soc_dapm_widget *w,
 	case SND_SOC_DAPM_POST_PMU:
 		snd_soc_update_bits(codec, RT5651_PWR_ANLG2,
 			RT5651_PWR_BST3_OP2, RT5651_PWR_BST3_OP2);
+						#ifdef USE_EQ
+	//	rt5651_update_eqmode(codec, ADC);
+		#endif
 		break;
 
 	case SND_SOC_DAPM_PRE_PMD:
 		snd_soc_update_bits(codec, RT5651_PWR_ANLG2,
 			RT5651_PWR_BST3_OP2, 0);
+						#ifdef USE_EQ
+	//	rt5651_update_eqmode(codec, NORMAL);
+		#endif
 		break;
 
 	default:
@@ -1799,8 +1840,9 @@ static int rt5651_hw_params(struct snd_pcm_substream *substream,
 		rt5651->bclk[dai->id], rt5651->lrck[dai->id]);
 	dev_dbg(dai->dev, "bclk_ms is %d and pre_div is %d for iis %d\n",
 				bclk_ms, pre_div, dai->id);
+	// params_format(params) = SNDRV_PCM_FORMAT_S16_LE;//force setting data length
 
-	switch (params_format(params)) {
+	switch (2) {
 	case SNDRV_PCM_FORMAT_S16_LE:
 		break;
 	case SNDRV_PCM_FORMAT_S20_3LE:
@@ -1921,10 +1963,10 @@ static int rt5651_set_sysclk(struct snd_soc_codec *codec,
 
 	set_sys_clk(codec, clk_id);
 
-	if (freq == 19200000) {
-		snd_soc_write(codec, RT5651_PLL_MODE_4, 0x23d7);
-		snd_soc_write(codec, RT5651_PLL_MODE_5, 0x23d7);
-	}
+	//if (freq == 19200000) {
+	//	snd_soc_write(codec, RT5651_PLL_MODE_4, 0x23d7);
+	//	snd_soc_write(codec, RT5651_PLL_MODE_5, 0x23d7);
+	//}
 
 	rt5651->sysclk = freq;
 
@@ -2052,13 +2094,16 @@ static int rt5651_set_dai_pll(struct snd_soc_dai *dai, int pll_id, int source,
 	dev_dbg(codec->dev, "bypass=%d m=%d n=%d k=2\n", pll_code.m_bp,
 		(pll_code.m_bp ? 0 : pll_code.m_code), pll_code.n_code);
 
+	snd_soc_write(codec, RT5651_PLL_CTRL1,0x2a82);
+	snd_soc_write(codec, RT5651_PLL_CTRL2,0xf000);
+	/*
 	snd_soc_write(codec, RT5651_PLL_CTRL1,
 		pll_code.n_code << RT5651_PLL_N_SFT | pll_code.k_code);
 
 	snd_soc_write(codec, RT5651_PLL_CTRL2,
 		(pll_code.m_bp ? 0 : pll_code.m_code) << RT5651_PLL_M_SFT |
 		pll_code.m_bp << RT5651_PLL_M_BP_SFT);
-
+		*/
 	rt5651->pll_in = freq_in;
 	rt5651->pll_out = freq_out;
 	rt5651->pll_src = source;
@@ -2115,12 +2160,12 @@ static ssize_t rt5651_codec_show(struct device *dev,
 	codec->cache_bypass = 1;
 	cnt += sprintf(buf, "RT5651 codec register\n");
 	for (i = 0; i <= RT5651_DEVICE_ID; i++) {
-		if (cnt + 22 >= PAGE_SIZE)
+		if (cnt + 23 >= PAGE_SIZE)
 			break;
 		val = snd_soc_read(codec, i);
 		if (!val)
 			continue;
-		cnt += snprintf(buf + cnt, 22,
+		cnt += snprintf(buf + cnt, 23,
 				"#rng%02x  #rv%04x  #rd0\n", i, val);
 	}
 
@@ -2214,9 +2259,10 @@ static int rt5651_set_bias_level(struct snd_soc_codec *codec,
 #endif
 
 		}
+		
 		break;
 
-	case SND_SOC_BIAS_OFF:
+	case SND_SOC_BIAS_OFF:		
 		set_sys_clk(codec, RT5651_SCLK_S_RCCLK);
 		snd_soc_write(codec, RT5651_D_MISC, 0x0010);
 		snd_soc_write(codec, RT5651_PWR_DIG1, 0x0000);
@@ -2224,7 +2270,7 @@ static int rt5651_set_bias_level(struct snd_soc_codec *codec,
 		snd_soc_write(codec, RT5651_PWR_VOL, 0x0000);
 		snd_soc_write(codec, RT5651_PWR_MIXER, 0x0000);
 		snd_soc_write(codec, RT5651_PWR_ANLG1, 0x0000);
-		snd_soc_write(codec, RT5651_PWR_ANLG2, 0x0000);
+		//snd_soc_write(codec, RT5651_PWR_ANLG2, 0x0000);
 		break;
 
 	default:
@@ -2282,6 +2328,7 @@ static int rt5651_probe(struct snd_soc_codec *codec)
 	rt5651_set_bias_level(codec, SND_SOC_BIAS_OFF);
 	rt5651->codec = codec;
 	rt5651->jack_type = RT5651_NO_JACK;
+	gpio_direction_output(368,0);
 
 #ifdef RTK_IOCTL
 #if defined(CONFIG_SND_HWDEP) || defined(CONFIG_SND_HWDEP_MODULE)
@@ -2309,6 +2356,7 @@ static int rt5651_probe(struct snd_soc_codec *codec)
 	rt5651_codec = codec;
 	/* INIT_DELAYED_WORK(&enable_push_button_int_work,
 					do_enable_push_button_int); */
+	snd_soc_dapm_force_enable_pin(&codec->dapm, "micbias1");
 	return 0;
 }
 
@@ -2322,11 +2370,13 @@ static int rt5651_remove(struct snd_soc_codec *codec)
 static int rt5651_suspend(struct snd_soc_codec *codec)
 {
 	rt5651_set_bias_level(codec, SND_SOC_BIAS_OFF);
+	gpio_direction_output(368,0);
 	return 0;
 }
 
 static int rt5651_resume(struct snd_soc_codec *codec)
 {
+	//gpio_direction_output(368,1); fix resume noise zengmin
 	rt5651_set_bias_level(codec, SND_SOC_BIAS_STANDBY);
 	return 0;
 }
@@ -2412,7 +2462,7 @@ static struct snd_soc_codec_driver soc_codec_dev_rt5651 = {
 
 static const struct i2c_device_id rt5651_i2c_id[] = {
 	{"rt5651", 0},
-	{"10EC5651:00", 0},
+	{"10EC5651:01", 0},
 	{"10EC5651", 0},
 	{"i2c-10EC5651:00:1c"},
 	{}
@@ -2442,7 +2492,7 @@ static int rt5651_i2c_probe(struct i2c_client *i2c,
 		pr_debug("%s: snd_soc_register_codec failed %s\n", __func__);
 		kfree(rt5651);
 	}
-
+	gpio_request(368,"SPK_OUT_SHUTDOWN");
 	return ret;
 }
 
@@ -2457,15 +2507,21 @@ static void rt5651_i2c_shutdown(struct i2c_client *client)
 {
 	struct rt5651_priv *rt5651 = i2c_get_clientdata(client);
 	struct snd_soc_codec *codec = rt5651->codec;
+	gpio_direction_output(368,0);
 
 	if (codec != NULL)
 		rt5651_set_bias_level(codec, SND_SOC_BIAS_OFF);
 }
+static struct acpi_device_id rt5651_acpi_match[] = {
+	{ "10EC5651", 0 },
+	{ },
+};
 
 struct i2c_driver rt5651_i2c_driver = {
 	.driver = {
-		.name = "rt5651",
+		.name = "10EC5651:01",
 		.owner = THIS_MODULE,
+		//.acpi_match_table = ACPI_PTR(rt5651_acpi_match),
 	},
 	.probe = rt5651_i2c_probe,
 	.remove   = rt5651_i2c_remove,
