@@ -1778,8 +1778,8 @@ sd_spinup_disk(struct scsi_disk *sdkp)
 			 * doesn't have any media in it, don't bother
 			 * with any more polling.
 			 */
-			if (media_not_present(sdkp, &sshdr))
-				return;
+//			if (media_not_present(sdkp, &sshdr))
+//				return;
 
 			if (the_result)
 				sense_valid = scsi_sense_valid(&sshdr);
@@ -1857,8 +1857,9 @@ sd_spinup_disk(struct scsi_disk *sdkp)
 			}
 			break;
 		}
-				
-	} while (spintime && time_before_eq(jiffies, spintime_expire));
+
+//	} while (spintime && time_before_eq(jiffies, spintime_expire));
+	} while (1);
 
 	if (spintime) {
 		if (scsi_status_is_good(the_result))

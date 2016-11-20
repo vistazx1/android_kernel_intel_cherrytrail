@@ -4506,7 +4506,7 @@ void show_state_filter(unsigned long state_filter)
 
 #ifdef CONFIG_SCHED_DEBUG
 	if (sched_debug_enabled)
-		sysrq_sched_debug_show();
+		//sysrq_sched_debug_show();
 #endif
 	rcu_read_unlock();
 	/*
