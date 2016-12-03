@@ -47,7 +47,6 @@
 #include "atomisp_dfs_tables.h"
 #include "atomisp_drvfs.h"
 #include "hmm/hmm.h"
-#include "atomisp_trace_event.h"
 
 #include "hrt/hive_isp_css_mm_hrt.h"
 
@@ -458,10 +457,8 @@ int atomisp_mrfld_power_down(struct atomisp_device *isp)
 				reg_value);
 		/* wait until ISPSSPM0 bit[25:24] shows 0x3 */
 		if ((reg_value >> MRFLD_ISPSSPM0_ISPSSS_OFFSET) ==
-			MRFLD_ISPSSPM0_IUNIT_POWER_OFF) {
-			trace_ipu_cstate(0);
+			MRFLD_ISPSSPM0_IUNIT_POWER_OFF)
 			return 0;
-		}
 
 		if (time_after(jiffies, timeout)) {
 			dev_err(isp->dev, "power-off iunit timeout.\n");
@@ -504,10 +501,8 @@ int atomisp_mrfld_power_up(struct atomisp_device *isp)
 				reg_value);
 		/* wait until ISPSSPM0 bit[25:24] shows 0x0 */
 		if ((reg_value >> MRFLD_ISPSSPM0_ISPSSS_OFFSET) ==
-			MRFLD_ISPSSPM0_IUNIT_POWER_ON) {
-			trace_ipu_cstate(1);
+			MRFLD_ISPSSPM0_IUNIT_POWER_ON)
 			return 0;
-		}
 
 		if (time_after(jiffies, timeout)) {
 			dev_err(isp->dev, "power-on iunit timeout.\n");
@@ -1275,7 +1270,6 @@ static int atomisp_pci_probe(struct pci_dev *dev,
 	const struct atomisp_platform_data *pdata;
 	struct atomisp_device *isp;
 	unsigned int start;
-	void __iomem * const *table;
 	void __iomem *base;
 	int err, val;
 	u32 irq;
@@ -1311,13 +1305,7 @@ static int atomisp_pci_probe(struct pci_dev *dev,
 		return err;
 	}
 
-	table = pcim_iomap_table(dev);
-	if (!table) {
-		dev_err(&dev->dev, "atomisp: error iomap table ptr\n");
-		return -EINVAL;
-	}
-	base = table[ATOM_ISP_PCI_BAR];
-
+	base = pcim_iomap_table(dev)[ATOM_ISP_PCI_BAR];
 	dev_dbg(&dev->dev, "base: %p\n", base);
 
 	atomisp_io_base = base;
@@ -1628,12 +1616,10 @@ load_fw_fail:
 	atomisp_msi_irq_uninit(isp, dev);
 
 	atomisp_ospm_dphy_down(isp);
-#ifdef CONFIG_GMIN_INTEL_MID
 	if (ATOMISP_INTERNAL_PM) {
 		if (atomisp_mrfld_power_down(isp))
 			dev_err(&dev->dev, "Failed to switch off ISP\n");
 	}
-#endif
 
 	pci_dev_put(isp->pci_root);
 	return err;
