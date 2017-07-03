@@ -48,6 +48,11 @@
 #define MAX_CC 		 2500
 #define BATTERY_CAPACITY 6500
 #define BATTERY_RDC0 0x54
+#elif defined(CONFIG_CUBE_IWORK10)
+#define MAX_CV           4200
+#define MAX_CC           2000
+#define BATTERY_CAPACITY 7500
+#define BATTERY_RDC0 0x52
 #else //CONFIG_CHUWI_VI10PLUS
 #define MAX_CV 		 4200
 #define MAX_CC 		 2500
@@ -64,7 +69,7 @@ static int fg_bat_curve[] = {
 	0,	0,	0,	0,	0,	0,	0,	1,	2,	3,	5,	12,
 	19,	33,	45,	50,	54,	57,	61,	67,	72,	77,	81,	85,
 	91,	95,	98,	100,	100,	100,	100,	100,
-#else //CONFIG_CHUWI_VI10PLUS
+#else //CONFIG_CHUWI_VI10PLUS AND CONFIG_CUBE_IWORK10
 	0,	0,	0,	0,	0,	0,	0,	1,	2,	3,	6,	12,
 	20,	36,	48,	53,	57,	61,	63,	69,	74,	79,	83,	88,
 	92,	97,	98,	100,	100,	100,	100,	100,
