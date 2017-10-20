@@ -792,6 +792,8 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 		 * notifications.
 		 * */
 		intel_hpd_init(dev);
+		/* Config may have changed between suspend and resume */
+		drm_helper_hpd_irq_event(dev);
 	}
 
 	intel_opregion_init(dev);
@@ -814,9 +816,6 @@ static int __i915_drm_thaw(struct drm_device *dev, bool restore_gtt_mappings)
 
 	sysfs_notify(&dev->primary->kdev->kobj, NULL, "thaw");
 	kobject_uevent_env(&dev->primary->kdev->kobj, KOBJ_CHANGE, envp);
-
-	/* Config may have changed between suspend and resume */
-	schedule_work(&dev_priv->probe_hotplug_work);
 
 	return 0;
 }
@@ -2130,7 +2129,6 @@ static int intel_runtime_resume(struct device *device)
 
 	kobject_uevent_env(&dev->primary->kdev->kobj, KOBJ_CHANGE, envp);
 
-	schedule_work(&dev_priv->probe_hotplug_work);
 	trace_intel_runtime_resume_exit(dev, ret);
 	return ret;
 }
